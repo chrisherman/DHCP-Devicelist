@@ -2,7 +2,8 @@
 
 This project provides a Dockerized application that creates a simple web server to display devices and IP addresses issued by your router's DHCP server. It pulls data from your router via SNMP and provides a clean, sortable web interface showing online/offline status, IP, MAC address, and hostname.
 
-<img width="2504" height="796" alt="image" src="https://github.com/user-attachments/assets/f6eb3355-0dc4-4652-ba82-c363ed78e3d7" />
+<img width="1677" height="708" alt="image" src="https://github.com/user-attachments/assets/8e569bd5-867a-41d3-b7d8-33e8a5a711c5" />
+
 
 ## Features
 - **Multiple Router Support:** Dynamically add, edit, and toggle multiple routers directly from the web interface.
