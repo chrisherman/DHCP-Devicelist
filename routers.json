@@ -1,0 +1,9 @@
+[
+    {
+        "id": "4d367f02-a7dc-4fe5-90df-2b6aa973ed76",
+        "name": "Home Router",
+        "ip": "192.168.1.1",
+        "community": "test",
+        "enabled": true
+    }
+]

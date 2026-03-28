@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Device List</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; padding: 30px; background: #f0f2f5; color: #333; }
+        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 1100px; margin: auto; }
+        
+        h1 { margin-top: 0; color: #1a73e8; font-size: 24px; }
+        .controls { display: flex; align-items: center; margin-bottom: 20px; gap: 15px; }
+        
+        
+        /* Router Config */
+        .router-header { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
+        .router-item { display: flex; align-items: center; background: #e9ecef; padding: 5px 10px; border-radius: 15px; font-size: 14px; }
+        .router-item input[type="checkbox"] { margin-right: 5px; cursor: pointer; }
+        .add-router-btn { background: #1a73e8; color: white; border: none; border-radius: 50%; width: 28px; height: 28px; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .add-router-btn:hover { background: #1557b0; }
+        
+        /* Modal */
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); }
+        .modal-content { background-color: white; margin: 10% auto; padding: 20px; border-radius: 8px; width: 300px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .modal-content h3 { margin-top: 0; }
+        .modal-content input { width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 15px; }
+        .modal-btn { padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; }
+        .modal-btn.primary { background: #1a73e8; color: white; }
+        .modal-btn.secondary { background: #ccc; color: black; }
+        /* Buttons and Spinners */
+        .btn { padding: 10px 20px; background: #28a745; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; }
+        .btn:disabled { background: #ccc; cursor: not-allowed; }
+        .spinner { display: none; width: 20px; height: 20px; border: 3px solid #f3f3f3; border-top: 3px solid #3498db; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        /* Table Styling */
+        .busy-overlay { opacity: 0.4; pointer-events: none; filter: blur(1px); transition: opacity 0.3s; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; }
+        
+        /* Sorting Headers */
+        th { 
+            background: #f8f9fa; 
+            color: #555; 
+            cursor: pointer; 
+            user-select: none; 
+            position: relative;
+            transition: background 0.2s;
+        }
+        th:hover { background: #e9ecef; }
+        th::after { content: ' ↕'; font-size: 0.8em; color: #bbb; margin-left: 5px; }
+
+        /* Status Badges */
+        .badge { padding: 4px 12px; border-radius: 20px; font-size: 0.8em; font-weight: bold; display: inline-block; }
+        .online { background: #e6f4ea; color: #1e7e34; }
+        .offline { background: #fce8e6; color: #d93025; }
+        
+        code { background: #f4f4f4; padding: 2px 5px; border-radius: 4px; font-family: monospace; color: #666; }
+        a { color: #1a73e8; text-decoration: none; font-weight: 500; }
+        a:hover { text-decoration: underline; }
+        #status { font-size: 14px; color: #666; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h1>Device List <span style="font-size: 0.6em; color: red;">(v2.3)</span></h1>
+        <button class="add-router-btn" onclick="openRouterModal()" title="Add Router" style="width: 40px; height: 40px; font-size: 24px; font-weight: bold;">+</button>
+    </div>
+    
+    <div class="router-header" id="router-list">
+        <!-- Routers injected here -->
+    </div>
+    <div class="controls">
+        <button id="refreshBtn" class="btn" onclick="triggerRefresh()">Scan Now</button>
+        <div id="loader" class="spinner"></div>
+        <span id="status">Loading data...</span>
+    </div>
+
+    <div id="table-container">
+        <!-- Table injected here -->
+    </div>
+</div>
+
+<script>
+    let deviceData = [];
+    let currentSort = { col: 'hostname', asc: true };
+
+    
+    let routers = [];
+
+    async function loadRouters() {
+        try {
+            const res = await fetch('/api/routers');
+            if (!res.ok) throw new Error("HTTP error " + res.status);
+            routers = await res.json();
+        } catch (e) {
+            console.error("Failed to load routers", e);
+            routers = [];
+        }
+        
+        renderRouters();
+        if (routers.length === 0) {
+            openRouterModal();
+        }
+    }
+
+    function renderRouters() {
+        const container = document.getElementById('router-list');
+        let html = '';
+        routers.forEach(r => {
+            html += `<div class="router-item">
+                <input type="checkbox" ${r.enabled ? 'checked' : ''} onchange="toggleRouter('${r.id}', this.checked)">
+                <span>${r.name}</span>
+                <button onclick="deleteRouter('${r.id}')" style="margin-left: 8px; border: none; background: #ff4d4f; color: white; border-radius: 50%; width: 20px; height: 20px; font-size: 11px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1;" title="Remove Router">&#10005;</button>
+            </div>`;
+        });
+        container.innerHTML = html;
+    }
+
+    async function deleteRouter(id) {
+        if (!confirm("Remove this router?")) return;
+        try {
+            await fetch(`/api/routers/${id}`, { method: 'DELETE' });
+            await loadRouters();
+            triggerRefresh();
+        } catch (e) {
+            console.error("Failed to delete router", e);
+            alert("Error deleting router.");
+        }
+    }
+
+    async function toggleRouter(id, enabled) {
+        await fetch(`/api/routers/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled })
+        });
+        loadRouters();
+    }
+
+    function openRouterModal() {
+        document.getElementById('routerModal').style.display = 'block';
+    }
+
+    function closeRouterModal() {
+        if (routers.length === 0) {
+            alert("You must add at least one router.");
+            return;
+        }
+        document.getElementById('routerModal').style.display = 'none';
+    }
+
+    async function saveRouter() {
+        const name = document.getElementById('routerName').value.trim();
+        const ip = document.getElementById('routerIp').value.trim();
+        const community = document.getElementById('routerCommunity').value.trim();
+        
+        if (!name || !ip) {
+            alert("Name and IP are required.");
+            return;
+        }
+        
+        await fetch('/api/routers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, ip, community: community || 'test', enabled: true })
+        });
+        
+        document.getElementById('routerName').value = '';
+        document.getElementById('routerIp').value = '';
+        document.getElementById('routerCommunity').value = '';
+        document.getElementById('routerModal').style.display = 'none';
+        
+        loadRouters();
+    }
+
+    async function triggerRefresh() {
+        const btn = document.getElementById('refreshBtn');
+        const loader = document.getElementById('loader');
+        const container = document.getElementById('table-container');
+        
+        btn.disabled = true;
+        loader.style.display = 'block';
+        container.classList.add('busy-overlay');
+
+        try {
+            await fetch('/api/refresh');
+            // Poll every 4s for a total of 24s
+            let attempts = 0;
+            const checker = setInterval(async () => {
+                attempts++;
+                await loadRouters();
+    loadData();
+                if (attempts >= 6) {
+                    btn.disabled = false;
+                    loader.style.display = 'none';
+                    container.classList.remove('busy-overlay');
+                    clearInterval(checker);
+                }
+            }, 4000);
+        } catch (e) {
+            alert("Refresh failed. Check container logs.");
+            btn.disabled = false;
+            loader.style.display = 'none';
+        }
+    }
+
+    async function loadData() {
+        try {
+            const response = await fetch('dhcp_table.json?t=' + Date.now());
+            const data = await response.json();
+            deviceData = data.devices;
+            document.getElementById('status').innerText = 'Last Sync: ' + data.last_updated;
+            renderTable();
+        } catch (e) {
+            document.getElementById('status').innerText = 'Waiting for first scan...';
+        }
+    }
+
+    function sort(col) {
+        if (currentSort.col === col) {
+            currentSort.asc = !currentSort.asc;
+        } else {
+            currentSort.col = col;
+            currentSort.asc = true;
+        }
+
+        deviceData.sort((a, b) => {
+            let valA = a[col];
+            let valB = b[col];
+
+            // Numerical IP Sorting Logic (pads 192.168.2.2 to 192.168.002.002)
+            if (col === 'ip') {
+                valA = valA.split('.').map(num => num.padStart(3, '0')).join('.');
+                valB = valB.split('.').map(num => num.padStart(3, '0')).join('.');
+            }
+
+            if (valA < valB) return currentSort.asc ? -1 : 1;
+            if (valA > valB) return currentSort.asc ? 1 : -1;
+            return 0;
+        });
+
+        renderTable();
+    }
+
+    function renderTable() {
+        const container = document.getElementById('table-container');
+        let html = `<table>
+            <thead>
+                <tr>
+                    <th onclick="sort('hostname')">Device Name</th>
+                    <th onclick="sort('router')">Router</th>
+                    <th onclick="sort('ip')">IP Address</th>
+                    <th onclick="sort('mac')">MAC Address</th>
+                    <th onclick="sort('online')">Status</th>
+                    <th onclick="sort('last_seen')">Last Seen</th>
+                </tr>
+            </thead>
+            <tbody>`;
+
+        deviceData.forEach(item => {
+            const badgeClass = item.online ? 'online' : 'offline';
+            html += `<tr>
+                <td style="font-weight:600;">${item.hostname}</td>
+                <td style="color:#666; font-size:0.9em;">${item.router || 'Unknown'}</td>
+                <td><a href="http://${item.ip}" target="_blank">${item.ip}</a></td>
+                <td><code>${item.mac.toUpperCase()}</code></td>
+                <td><span class="badge ${badgeClass}">${item.online ? 'Online' : 'Offline'}</span></td>
+                <td style="color:#666; font-size:0.9em;">${item.last_seen}</td>
+            </tr>`;
+        });
+
+        html += '</tbody></table>';
+        container.innerHTML = html;
+    }
+
+    // Load on start
+    document.addEventListener('DOMContentLoaded', () => {
+        loadRouters();
+        loadData();
+    });
+</script>
+
+
+<!-- Add Router Modal -->
+<div id="routerModal" class="modal">
+    <div class="modal-content">
+        <h3>Add Router</h3>
+        <input type="text" id="routerName" placeholder="Friendly Name" required>
+        <input type="text" id="routerIp" placeholder="IP Address (e.g., 192.168.1.1)" required>
+        <input type="text" id="routerCommunity" placeholder="SNMP Community (optional)">
+        <div class="modal-actions">
+            <button class="modal-btn secondary" onclick="closeRouterModal()">Cancel</button>
+            <button class="modal-btn primary" onclick="saveRouter()">Save</button>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

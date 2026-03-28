@@ -1,0 +1,9 @@
+services:
+  dhcp-extractor:
+    build: .
+    container_name: er605-extractor
+    network_mode: "host"
+    volumes:
+      - ./known_devices.json:/app/known_devices.json
+      - ./data:/app/data
+    restart: always

@@ -1,0 +1,6 @@
+.env
+dhcp_table.json
+tasks.md
+log.txt
+__pycache__/
+.DS_Store
