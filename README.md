@@ -22,7 +22,7 @@ This project provides a Dockerized application that creates a simple web server 
 1. **Clone the Repository**
    Pull the project from GitHub:
    ```bash
-   git clone https://github.com/your-username/dhcpfetch2.git
+   git clone https://github.com/chrisherman/dhcpfetch2.git
    cd dhcpfetch2
    ```
 
